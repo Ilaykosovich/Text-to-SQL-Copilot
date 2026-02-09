@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>LLM Orchestrator</title>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 0; background:#0b1020; color:#e8eaf0; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 18px; }
+    .top { display:flex; gap:12px; align-items:center; justify-content:space-between; }
+    .badge { font-size:12px; opacity:.85; background:#141a33; padding:6px 10px; border-radius:999px; }
+    .btn { cursor:pointer; border:0; border-radius:10px; padding:10px 12px; background:#2b356b; color:#fff; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .panel { margin-top:14px; background:#101633; border:1px solid #232b57; border-radius:14px; overflow:hidden; }
+    .msgs { height: 64vh; overflow:auto; padding: 14px; display:flex; flex-direction:column; gap:10px; }
+    .msg { padding:10px 12px; border-radius:12px; white-space:pre-wrap; line-height:1.35; max-width: 78%; }
+    .user { align-self:flex-end; background:#2a3d8f; }
+    .ai { align-self:flex-start; background:#1b2348; border:1px solid #2a356b; }
+    .input { display:flex; gap:10px; padding: 12px; border-top: 1px solid #232b57; }
+    textarea { flex:1; resize:none; border-radius:12px; border:1px solid #232b57; background:#0d1330; color:#fff; padding:10px 12px; outline:none; }
+    select { border-radius:10px; border:1px solid #232b57; background:#0d1330; color:#fff; padding:8px 10px; outline:none; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    .hint { font-size:12px; opacity:.7; margin-top:10px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+  <div class="top">
+    <h2>🧠 Text-to-SQL Orchestrator</h2>
+    <div class="badge">Backend controls model & temperature</div>
+  </div>
+
+  <!-- Controls: only mode -->
+  <div class="row">
+    <div class="badge">Mode</div>
+    <select id="mode">
+      <option value="/chat">Chat</option>
+    </select>
+
+    <button id="newSession" class="btn">New session</button>
+    <button id="clearUi" class="btn">Clear UI</button>
+  </div>
+
+  <!-- Chat panel -->
+  <div class="panel">
+    <div id="msgs" class="msgs"></div>
+    <div class="input">
+      <textarea id="input" rows="3" placeholder="Введите запрос..."></textarea>
+      <button id="send" class="btn">Send</button>
+    </div>
+  </div>
+
+  <div class="hint">
+    <b>Chat</b> — обычный диалог. <b>Query Analyzer</b> — возвращает JSON для поиска по RAG.
+  </div>
+</div>
+
+<script>
+  const msgsEl = document.getElementById("msgs");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const modeEl = document.getElementById("mode");
+  const newSessionBtn = document.getElementById("newSession");
+  const clearUiBtn = document.getElementById("clearUi");
+
+  let sessionId = crypto.randomUUID();
+  let messages = []; // используется только для /chat, как история
+
+  function addMsg(role, text, mono=false) {
+    const div = document.createElement("div");
+    div.className = "msg " + (role === "user" ? "user" : "ai");
+    if (mono) div.classList.add("mono");
+    div.textContent = text;
+    msgsEl.appendChild(div);
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
+
+  function resetSession() {
+    sessionId = crypto.randomUUID();
+    messages = [];
+    addMsg("ai", `🔄 New session started: ${sessionId}`, true);
+  }
+
+  newSessionBtn.onclick = resetSession;
+
+  clearUiBtn.onclick = () => {
+    msgsEl.innerHTML = "";
+  };
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      sendBtn.click();
+    }
+  });
+
+  sendBtn.onclick = async () => {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    addMsg("user", text);
+    inputEl.value = "";
+
+    const mode = modeEl.value;
+
+    // ВАЖНО:
+    // - фронт НЕ передает model/temperature
+    // - backend использует settings.DEFAULT_LLM_MODEL и settings.DEFAULT_TEMPERATURE
+    const payload = {
+      session_id: sessionId,
+      messages: [...messages, { role: "user", content: text }]
+    };
+
+    sendBtn.disabled = true;
+
+    try {
+      const res = await fetch(mode, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      let output;
+      let isMono = false;
+
+      if (mode === "/query_analyze") {
+        output = JSON.stringify(data.analysis, null, 2);
+        isMono = true;
+      } else {
+        output = data.answer ?? "";
+        // сохраняем историю только для чата
+        messages.push({ role: "user", content: text });
+        messages.push({ role: "assistant", content: output });
+      }
+
+      addMsg("ai", output, isMono);
+    } catch (e) {
+      addMsg("ai", "❌ Error: " + (e?.message || String(e)), true);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  };
+
+  // стартовое сообщение
+  addMsg("ai", "Готово. Выберите режим и задайте вопрос.\n(Отправка: Enter+Ctrl / кнопка Send)");
+</script>
+
+</body>
+</html>
