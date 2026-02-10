@@ -1,6 +1,30 @@
 # Text-to-SQL Copilot  
 *(Part 1 — without RAG)*
 
+## How to start the project with Docker
+
+This is the recommended way to run the project.
+
+### 1. Create environment configuration
+
+Create a `.env` file based on the provided template:
+
+
+cp .env.example .env
+
+### 2. Build the Docker image
+
+From the project root directory, run: docker build -t text-to-sql-copilot .
+
+### 3. Run the container
+docker run -p 8000:8000 --env-file .env text-to-sql-copilot
+
+
+The service will be available at:
+
+http://localhost:8000
+
+
 🚧 **Status:** Work in progress
 
 Text-to-SQL Copilot is a system that allows users to query relational databases using **natural language**, without requiring any knowledge of SQL or the underlying database schema.
@@ -31,6 +55,7 @@ the LLM does not rely on manually provided schema descriptions. Instead, the sys
 <p align="center">
   <img src="images/Schema.png" width="900" />
   <img src="images/main_page.png" width="900" />
+  <img src="images/generated_sql.png" width="900" />
 </p>
 
 The system follows a **multi-stage orchestration pipeline** designed to minimize prompt size, reduce hallucinations, and improve SQL correctness.
@@ -86,12 +111,5 @@ This feedback loop continues until the query succeeds or a retry limit is reache
 ## LLM configuration
 
 The project supports both **OpenAI** and **local LLMs**.
-
-### OpenAI
-
-```env
-LLM_PROVIDER=openai
-OPENAI_API_KEY=your_api_key_here
-OPENAI_MODEL=gpt-4o-mini
 
 
