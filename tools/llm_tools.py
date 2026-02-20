@@ -261,9 +261,6 @@ async def db_query_chain(
     schema_selected = await select_relevant_schema_with_llm(llm, analysis, schema_full)
     logger.info("llm has selected relevant schemas")
     schema_for_prompt = compact_for_prompt(schema_selected)
-
-
-    # 3) Execute with retries (generate/fix inside)
     exec_res = await execute_with_retries(
         llm=llm,
         user_text=user_text,
